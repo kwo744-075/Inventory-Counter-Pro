@@ -1,7 +1,7 @@
 
 {
   "expo": {
-    "name": "Inventory Counter 1.0",
+    "name": "inventory-counter",
     "slug": "inventory-counter",
     "version": "1.0.0",
     "orientation": "portrait",
@@ -13,11 +13,17 @@
       "resizeMode": "contain",
       "backgroundColor": "#000000"
     },
+    "assetBundlePatterns": [
+      "**/*"
+    ],
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.anonymous.inventorycounter",
+      "bundleIdentifier": "com.inventorycounter.app",
+      "buildNumber": "1",
       "infoPlist": {
-        "ITSAppUsesNonExemptEncryption": false
+        "ITSAppUsesNonExemptEncryption": false,
+        "NSDocumentsFolderUsageDescription": "This app needs access to documents folder to export inventory data to Excel files.",
+        "NSPhotoLibraryUsageDescription": "This app needs access to photo library to save exported files."
       }
     },
     "android": {
@@ -26,7 +32,12 @@
         "backgroundColor": "#000000"
       },
       "edgeToEdgeEnabled": true,
-      "package": "com.anonymous.inventorycounter"
+      "package": "com.kOneill.inventory",
+      "versionCode": 1,
+      "permissions": [
+        "android.permission.WRITE_EXTERNAL_STORAGE",
+        "android.permission.READ_EXTERNAL_STORAGE"
+      ]
     },
     "web": {
       "favicon": "./assets/images/final_quest_240x240.png",
@@ -35,14 +46,29 @@
     "plugins": [
       "expo-font",
       "expo-router",
-      "expo-web-browser"
+      "expo-web-browser",
+      [
+        "expo-file-system",
+        {
+          "requestLegacyExternalStorage": true
+        }
+      ]
     ],
-    "scheme": "inventorycounter",
+    "scheme": "inventory-counter",
     "experiments": {
       "typedRoutes": true
     },
     "extra": {
-      "router": {}
+      "router": {},
+      "eas": {
+        "projectId": "your-project-id-here"
+      }
+    },
+    "updates": {
+      "url": "https://u.expo.dev/your-project-id-here"
+    },
+    "runtimeVersion": {
+      "policy": "appVersion"
     }
   }
 }

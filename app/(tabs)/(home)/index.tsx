@@ -1,212 +1,168 @@
 
-import React, { useState } from "react";
-import { Stack } from "expo-router";
-import { ScrollView, Pressable, StyleSheet, View, Text, Alert, Platform } from "react-native";
-import { IconSymbol } from "@/components/IconSymbol";
-import { GlassView } from "expo-glass-effect";
-import { useTheme } from "@react-navigation/native";
-import * as Haptics from "expo-haptics";
-
-interface InventoryItem {
-  id: string;
-  name: string;
-  count: number;
-  color: string;
-}
+import { useInventory } from '@/contexts/InventoryContext';
+import { colors } from '@/styles/commonStyles';
+import React, { useEffect } from 'react';
+import { useTheme } from '@react-navigation/native';
+import { IconSymbol } from '@/components/IconSymbol';
+import { GlassView } from 'expo-glass-effect';
+import SyncStatusIndicator from '@/components/SyncStatusIndicator';
+import { Stack, Link } from 'expo-router';
+import { ScrollView, Pressable, StyleSheet, View, Text, Platform } from 'react-native';
+import { fetchAllItemNumbers, fetchAllCategories } from '@/services/supabaseHelpers';
 
 export default function HomeScreen() {
   const theme = useTheme();
-  const [inventoryItems, setInventoryItems] = useState<InventoryItem[]>([
-    { id: '1', name: 'Product A', count: 0, color: '#007AFF' },
-    { id: '2', name: 'Product B', count: 0, color: '#34C759' },
-    { id: '3', name: 'Product C', count: 0, color: '#FF9500' },
-  ]);
+  const { categories, getAllItemNumbers, forceRefresh } = useInventory();
 
-  const incrementCount = (id: string) => {
-    if (Platform.OS !== 'web') {
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    }
-    setInventoryItems(items =>
-      items.map(item =>
-        item.id === id ? { ...item, count: item.count + 1 } : item
-      )
-    );
-  };
-
-  const decrementCount = (id: string) => {
-    if (Platform.OS !== 'web') {
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    }
-    setInventoryItems(items =>
-      items.map(item =>
-        item.id === id && item.count > 0 ? { ...item, count: item.count - 1 } : item
-      )
-    );
-  };
-
-  const resetCount = (id: string) => {
-    if (Platform.OS !== 'web') {
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    }
-    setInventoryItems(items =>
-      items.map(item =>
-        item.id === id ? { ...item, count: 0 } : item
-      )
-    );
-  };
-
-  const addNewItem = () => {
-    const colors = ['#007AFF', '#34C759', '#FF9500', '#FF3B30', '#5856D6', '#FF2D55'];
-    const randomColor = colors[Math.floor(Math.random() * colors.length)];
-    const newItem: InventoryItem = {
-      id: Date.now().toString(),
-      name: `Product ${String.fromCharCode(65 + inventoryItems.length)}`,
-      count: 0,
-      color: randomColor,
+  useEffect(() => {
+    // Sync with Supabase on app start
+    const syncWithSupabase = async () => {
+      try {
+        console.log('🔄 Syncing with Supabase on home screen load...');
+        
+        // Fetch latest data from Supabase
+        await fetchAllItemNumbers();
+        await fetchAllCategories();
+        
+        // Force refresh to update UI
+        forceRefresh();
+      } catch (error) {
+        console.error('❌ Error syncing with Supabase:', error);
+      }
     };
-    setInventoryItems([...inventoryItems, newItem]);
-    if (Platform.OS !== 'web') {
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    }
+
+    syncWithSupabase();
+  }, []);
+
+  const getRouteForCategory = (categoryId: string) => {
+    const routeMap: { [key: string]: string } = {
+      'oils': '/oils',
+      'oil-filters': '/oil-filters',
+      'air-filters': '/air-filters',
+      'cabin-filters': '/cabin-filters',
+      'wipers': '/wipers',
+      'misc': '/misc',
+    };
+    return routeMap[categoryId] || '/misc';
   };
 
-  const renderHeaderRight = () => (
-    <Pressable
-      onPress={addNewItem}
-      style={styles.headerButtonContainer}
-    >
-      <IconSymbol name="plus" color={theme.colors.primary} />
-    </Pressable>
-  );
+  const renderCategoryCard = (category: any, index: number) => {
+    const allItemNumbers = getAllItemNumbers();
+    const categoryItems = allItemNumbers.filter(item => item.category === category.id);
+    const totalCount = categoryItems.reduce((sum, item) => sum + item.totalCount, 0);
 
-  const renderHeaderLeft = () => (
-    <Pressable
-      onPress={() => Alert.alert("Settings", "Settings feature coming soon")}
-      style={styles.headerButtonContainer}
-    >
-      <IconSymbol
-        name="gear"
-        color={theme.colors.primary}
-      />
-    </Pressable>
-  );
-
-  const totalCount = inventoryItems.reduce((sum, item) => sum + item.count, 0);
+    return (
+      <Link key={category.id} href={getRouteForCategory(category.id)} asChild>
+        <Pressable>
+          <GlassView
+            style={[
+              styles.categoryCard,
+              Platform.OS !== 'ios' && { backgroundColor: colors.card }
+            ]}
+            glassEffectStyle="regular"
+          >
+            <View style={[styles.iconContainer, { backgroundColor: category.color }]}>
+              <IconSymbol name={category.icon} size={24} color="white" />
+            </View>
+            <View style={styles.categoryContent}>
+              <Text style={[styles.categoryTitle, { color: colors.text }]}>
+                {category.name}
+              </Text>
+              <Text style={[styles.categoryStats, { color: colors.textSecondary }]}>
+                {categoryItems.length} items • {totalCount} total
+              </Text>
+            </View>
+            <IconSymbol name="chevron.right" size={16} color={colors.textSecondary} />
+          </GlassView>
+        </Pressable>
+      </Link>
+    );
+  };
 
   return (
     <>
-      {Platform.OS === 'ios' && (
-        <Stack.Screen
-          options={{
-            title: "Inventory Counter 1.0",
-            headerRight: renderHeaderRight,
-            headerLeft: renderHeaderLeft,
-          }}
-        />
-      )}
-      <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
+      <Stack.Screen
+        options={{
+          title: 'Inventory Counter',
+          headerStyle: { backgroundColor: colors.background },
+          headerTintColor: colors.text,
+          headerRight: () => <SyncStatusIndicator />,
+        }}
+      />
+      
+      <View style={[styles.container, { backgroundColor: colors.background }]}>
         <ScrollView
-          contentContainerStyle={[
-            styles.scrollContainer,
-            Platform.OS !== 'ios' && styles.scrollContainerWithTabBar
-          ]}
-          contentInsetAdjustmentBehavior="automatic"
+          contentContainerStyle={styles.scrollContainer}
           showsVerticalScrollIndicator={false}
         >
-          {/* Total Count Card */}
-          <GlassView 
-            style={[
-              styles.totalCard,
-              Platform.OS !== 'ios' && { backgroundColor: theme.dark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)' }
-            ]} 
-            glassEffectStyle="regular"
-          >
-            <Text style={[styles.totalLabel, { color: theme.dark ? '#98989D' : '#666' }]}>
-              Total Items Counted
+          <View style={styles.header}>
+            <Text style={[styles.title, { color: colors.text }]}>
+              Welcome Back
             </Text>
-            <Text style={[styles.totalCount, { color: theme.colors.text }]}>
-              {totalCount}
+            <Text style={[styles.subtitle, { color: colors.textSecondary }]}>
+              Select a category to manage your inventory
             </Text>
-          </GlassView>
+          </View>
 
-          {/* Inventory Items */}
-          {inventoryItems.map((item) => (
-            <GlassView
-              key={item.id}
-              style={[
-                styles.itemCard,
-                Platform.OS !== 'ios' && { backgroundColor: theme.dark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)' }
-              ]}
-              glassEffectStyle="regular"
-            >
-              <View style={styles.itemHeader}>
-                <View style={styles.itemTitleContainer}>
-                  <View style={[styles.itemColorDot, { backgroundColor: item.color }]} />
-                  <Text style={[styles.itemName, { color: theme.colors.text }]}>
-                    {item.name}
-                  </Text>
-                </View>
-                <Pressable
-                  onPress={() => resetCount(item.id)}
-                  style={styles.resetButton}
-                >
-                  <Text style={[styles.resetButtonText, { color: theme.colors.primary }]}>
-                    Reset
-                  </Text>
-                </Pressable>
-              </View>
+          <View style={styles.categoriesGrid}>
+            {categories.map((category, index) => renderCategoryCard(category, index))}
+          </View>
 
-              <View style={styles.counterContainer}>
-                <Pressable
-                  onPress={() => decrementCount(item.id)}
+          <View style={styles.quickActions}>
+            <Text style={[styles.sectionTitle, { color: colors.text }]}>
+              Quick Actions
+            </Text>
+            
+            <Link href="/export" asChild>
+              <Pressable>
+                <GlassView
                   style={[
-                    styles.counterButton,
-                    item.count === 0 && styles.counterButtonDisabled
+                    styles.actionCard,
+                    Platform.OS !== 'ios' && { backgroundColor: colors.card }
                   ]}
-                  disabled={item.count === 0}
+                  glassEffectStyle="regular"
                 >
-                  <IconSymbol 
-                    name="minus.circle.fill" 
-                    size={40} 
-                    color={item.count === 0 ? (theme.dark ? '#3A3A3C' : '#E5E5EA') : item.color} 
-                  />
-                </Pressable>
+                  <View style={[styles.actionIcon, { backgroundColor: colors.primary }]}>
+                    <IconSymbol name="square.and.arrow.up" size={18} color="white" />
+                  </View>
+                  <View style={styles.actionContent}>
+                    <Text style={[styles.actionTitle, { color: colors.text }]}>
+                      Import & Export
+                    </Text>
+                    <Text style={[styles.actionSubtitle, { color: colors.textSecondary }]}>
+                      Upload Excel files or export data
+                    </Text>
+                  </View>
+                  <IconSymbol name="chevron.right" size={16} color={colors.textSecondary} />
+                </GlassView>
+              </Pressable>
+            </Link>
 
-                <View style={styles.countDisplay}>
-                  <Text style={[styles.countText, { color: theme.colors.text }]}>
-                    {item.count}
-                  </Text>
-                </View>
-
-                <Pressable
-                  onPress={() => incrementCount(item.id)}
-                  style={styles.counterButton}
+            <Link href="/category-management" asChild>
+              <Pressable>
+                <GlassView
+                  style={[
+                    styles.actionCard,
+                    Platform.OS !== 'ios' && { backgroundColor: colors.card }
+                  ]}
+                  glassEffectStyle="regular"
                 >
-                  <IconSymbol 
-                    name="plus.circle.fill" 
-                    size={40} 
-                    color={item.color} 
-                  />
-                </Pressable>
-              </View>
-            </GlassView>
-          ))}
-
-          {/* Add Item Button */}
-          <Pressable onPress={addNewItem}>
-            <GlassView
-              style={[
-                styles.addItemCard,
-                Platform.OS !== 'ios' && { backgroundColor: theme.dark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)' }
-              ]}
-              glassEffectStyle="clear"
-            >
-              <IconSymbol name="plus.circle" size={32} color={theme.colors.primary} />
-              <Text style={[styles.addItemText, { color: theme.colors.primary }]}>
-                Add New Item
-              </Text>
-            </GlassView>
-          </Pressable>
+                  <View style={[styles.actionIcon, { backgroundColor: colors.accent }]}>
+                    <IconSymbol name="square.grid.2x2" size={18} color="white" />
+                  </View>
+                  <View style={styles.actionContent}>
+                    <Text style={[styles.actionTitle, { color: colors.text }]}>
+                      Manage Categories
+                    </Text>
+                    <Text style={[styles.actionSubtitle, { color: colors.textSecondary }]}>
+                      Add, edit, or remove categories
+                    </Text>
+                  </View>
+                  <IconSymbol name="chevron.right" size={16} color={colors.textSecondary} />
+                </GlassView>
+              </Pressable>
+            </Link>
+          </View>
         </ScrollView>
       </View>
     </>
@@ -218,94 +174,81 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   scrollContainer: {
-    paddingVertical: 16,
-    paddingHorizontal: 16,
-  },
-  scrollContainerWithTabBar: {
+    padding: 16,
     paddingBottom: 100,
   },
-  totalCard: {
-    borderRadius: 16,
-    padding: 24,
+  header: {
     marginBottom: 20,
-    alignItems: 'center',
   },
-  totalLabel: {
-    fontSize: 16,
-    fontWeight: '500',
-    marginBottom: 8,
-  },
-  totalCount: {
-    fontSize: 48,
+  title: {
+    fontSize: 26,
     fontWeight: '700',
+    marginBottom: 4,
   },
-  itemCard: {
-    borderRadius: 12,
-    padding: 20,
-    marginBottom: 12,
+  subtitle: {
+    fontSize: 14,
+    lineHeight: 18,
   },
-  itemHeader: {
+  categoriesGrid: {
+    gap: 10,
+    marginBottom: 28,
+  },
+  categoryCard: {
+    borderRadius: 14,
+    padding: 14,
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 16,
+    gap: 12,
   },
-  itemTitleContainer: {
-    flexDirection: 'row',
+  iconContainer: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    justifyContent: 'center',
     alignItems: 'center',
   },
-  itemColorDot: {
-    width: 12,
-    height: 12,
-    borderRadius: 6,
-    marginRight: 10,
+  categoryContent: {
+    flex: 1,
   },
-  itemName: {
+  categoryTitle: {
+    fontSize: 15,
+    fontWeight: '600',
+    marginBottom: 2,
+  },
+  categoryStats: {
+    fontSize: 12,
+  },
+  quickActions: {
+    gap: 10,
+  },
+  sectionTitle: {
     fontSize: 18,
     fontWeight: '600',
+    marginBottom: 6,
   },
-  resetButton: {
-    paddingHorizontal: 12,
-    paddingVertical: 6,
+  actionCard: {
+    borderRadius: 12,
+    padding: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
   },
-  resetButtonText: {
+  actionIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  actionContent: {
+    flex: 1,
+  },
+  actionTitle: {
     fontSize: 14,
     fontWeight: '600',
+    marginBottom: 2,
   },
-  counterContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-  counterButton: {
-    padding: 8,
-  },
-  counterButtonDisabled: {
-    opacity: 0.5,
-  },
-  countDisplay: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  countText: {
-    fontSize: 36,
-    fontWeight: '700',
-  },
-  addItemCard: {
-    borderRadius: 12,
-    padding: 20,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginTop: 8,
-  },
-  addItemText: {
-    fontSize: 16,
-    fontWeight: '600',
-    marginLeft: 8,
-  },
-  headerButtonContainer: {
-    padding: 6,
+  actionSubtitle: {
+    fontSize: 11,
   },
 });

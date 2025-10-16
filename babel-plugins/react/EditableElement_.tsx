@@ -4,7 +4,6 @@
 // @ts-nocheck
 import { cloneElement, PropsWithChildren, useContext } from "react";
 import { EditableContext } from "./withEditableWrapper_";
-import { Platform } from "react-native";
 
 export type ElementTypes = "Text" | "View";
 
@@ -46,12 +45,6 @@ export default function EditableElement_(_props: PropsWithChildren<any>) {
 
   const { children } = _props;
   const { props } = children;
-
-  // If we are not running in the web the windows will causes
-  // issues hence editable mode is not enabled.
-  if (Platform.OS !== "web") {
-    return cloneElement(children, props);
-  }
 
   const type = getType(children);
   const __sourceLocation = props.__sourceLocation;
